@@ -66,6 +66,8 @@ Navigate to [http://localhost:3000](http://localhost:3000).
 
 ### 5. Verify the data (optional)
 
+> **Note:** Only dates between 2024-01-01 and 2024-01-10 contain source data. Materialise a partition within that range before running the verification query.
+
 After materialising a partition in Dagster, check the aggregated results in the target DB:
 ```bash
 docker compose exec target_db psql -U user -d target -c \
