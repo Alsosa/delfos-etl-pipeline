@@ -71,6 +71,7 @@ services:
   source_api:
     build:
       context: ./source_api
+      network: host
     environment:
       <<: *common-env
     ports:
@@ -87,6 +88,7 @@ services:
   seed:
     build:
       context: ./source_api
+      network: host
     environment:
       <<: *common-env
     command: ["python", "seed.py"]
@@ -102,6 +104,7 @@ services:
   dagster_webserver:
     build:
       context: ./dagster_pipeline
+      network: host
     environment:
       <<: *dagster-env
     command: >
@@ -129,6 +132,7 @@ services:
   dagster_daemon:
     build:
       context: ./dagster_pipeline
+      network: host
     environment:
       <<: *dagster-env
     command: dagster-daemon run -w /app/workspace.yaml
