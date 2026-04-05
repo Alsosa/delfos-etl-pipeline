@@ -64,6 +64,16 @@ Navigate to [http://localhost:3000](http://localhost:3000).
 - Go to **Assets** → `etl_asset`
 - Materialise a partition (e.g. `2024-01-05`) manually, or let the daily schedule run at 01:00 UTC.
 
+### 5. Verify the data (optional)
+
+After materialising a partition in Dagster, check the aggregated results in the target DB:
+```bash
+docker compose exec target_db psql -U user -d target -c \
+  "SELECT d.timestamp, s.name, d.value FROM data d JOIN signal s ON s.id = d.signal_id ORDER BY d.timestamp, s.name LIMIT 20;"
+```
+
+This shows the 10-minute aggregated wind turbine data stored in the target database.
+
 ---
 
 ## Running the ETL manually (without Docker)
