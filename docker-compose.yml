@@ -1,0 +1,156 @@
+version: "3.9"
+
+x-common-env: &common-env
+  SOURCE_DB_URL: ${SOURCE_DB_URL:-postgresql://user:password@source_db:5432/source}
+  TARGET_DB_URL: ${TARGET_DB_URL:-postgresql://user:password@target_db:5432/target}
+  API_URL: ${API_URL:-http://source_api:8000}
+
+x-dagster-env: &dagster-env
+  <<: *common-env
+  DAGSTER_HOME: /dagster_home
+
+services:
+  # ── Databases ──────────────────────────────────────────────────────────────
+
+  source_db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: source
+    ports:
+      - "5433:5432"
+    volumes:
+      - source_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d source"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - etl_net
+
+  target_db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: target
+    ports:
+      - "5434:5432"
+    volumes:
+      - target_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d target"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - etl_net
+
+  dagster_db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: dagster
+      POSTGRES_PASSWORD: dagster
+      POSTGRES_DB: dagster
+    ports:
+      - "5435:5432"
+    volumes:
+      - dagster_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dagster -d dagster"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - etl_net
+
+  # ── Source API ─────────────────────────────────────────────────────────────
+
+  source_api:
+    build:
+      context: ./source_api
+    environment:
+      <<: *common-env
+    ports:
+      - "8000:8000"
+    depends_on:
+      source_db:
+        condition: service_healthy
+    networks:
+      - etl_net
+    restart: unless-stopped
+
+  # ── Seed job (runs once and exits) ────────────────────────────────────────
+
+  seed:
+    build:
+      context: ./source_api
+    environment:
+      <<: *common-env
+    command: ["python", "seed.py"]
+    depends_on:
+      source_db:
+        condition: service_healthy
+    networks:
+      - etl_net
+    restart: "no"
+
+  # ── Dagster webserver ──────────────────────────────────────────────────────
+
+  dagster_webserver:
+    build:
+      context: ./dagster_pipeline
+    environment:
+      <<: *dagster-env
+    command: >
+      dagster-webserver
+        -h 0.0.0.0
+        -p 3000
+        -w /app/workspace.yaml
+    ports:
+      - "3000:3000"
+    volumes:
+      - dagster_home:/dagster_home
+    depends_on:
+      source_db:
+        condition: service_healthy
+      target_db:
+        condition: service_healthy
+      dagster_db:
+        condition: service_healthy
+    networks:
+      - etl_net
+    restart: unless-stopped
+
+  # ── Dagster daemon (scheduler + run launcher) ──────────────────────────────
+
+  dagster_daemon:
+    build:
+      context: ./dagster_pipeline
+    environment:
+      <<: *dagster-env
+    command: dagster-daemon run -w /app/workspace.yaml
+    volumes:
+      - dagster_home:/dagster_home
+    depends_on:
+      source_db:
+        condition: service_healthy
+      target_db:
+        condition: service_healthy
+      dagster_db:
+        condition: service_healthy
+    networks:
+      - etl_net
+    restart: unless-stopped
+
+volumes:
+  source_db_data:
+  target_db_data:
+  dagster_db_data:
+  dagster_home:
+
+networks:
+  etl_net:
+    driver: bridge

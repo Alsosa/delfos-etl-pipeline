@@ -1,0 +1,12 @@
+.claude
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+.venv/
+venv/
+postgres_data/
+*.log
+.DS_Store

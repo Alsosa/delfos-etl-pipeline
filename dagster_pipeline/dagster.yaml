@@ -1,0 +1,12 @@
+storage:
+  postgres:
+    postgres_db:
+      username: dagster
+      password: dagster
+      hostname: dagster_db
+      db_name: dagster
+      port: 5432
+
+run_launcher:
+  module: dagster.core.launcher
+  class: DefaultRunLauncher
